@@ -15,6 +15,7 @@ Type
   TfrmImageViewer = Class(TFormMain)
     actCopyFolder: TAction;
     actDeleteFolder: TAction;
+    actTogglePane: TAction;
     actOpenFolder: TAction;
     actRenameFolder: TAction;
     ActionList1: TActionList;
@@ -24,7 +25,7 @@ Type
     pnlImages: TPanel;
     pnlFolders: TPanel;
     Splitter1: TSplitter;
-    Splitter2: TSplitter;
+    splPreview: TSplitter;
     ToolBar1: TToolBar;
     btnRenameFolder: TToolButton;
     ToolButton1: TToolButton;
@@ -32,10 +33,13 @@ Type
     ToolButton3: TToolButton;
     ToolButton4: TToolButton;
     ToolButton5: TToolButton;
+    ToolButton6: TToolButton;
+    ToolButton7: TToolButton;
     Procedure actCopyFolderExecute(Sender: TObject);
     Procedure actDeleteFolderExecute(Sender: TObject);
     Procedure actOpenFolderExecute(Sender: TObject);
     Procedure actRenameFolderClick(Sender: TObject);
+    Procedure actTogglePaneExecute(Sender: TObject);
     Procedure edtFolderChange(Sender: TObject);
     Procedure lvFoldersSelectItem(Sender: TObject; Item: TListItem; Selected: Boolean);
     Procedure GridSelectImage(Sender: TObject; AFilename: String);
@@ -145,6 +149,26 @@ Begin
         ShowMessage(sMessage);
       End;
     End;
+End;
+
+Procedure TfrmImageViewer.actTogglePaneExecute(Sender: TObject);
+Begin
+  If pnlImageViewer.Align = alBottom Then
+  Begin
+    pnlImageViewer.Align := alRight;
+    pnlImageViewer.Width := pnlImages.Width Div 2;
+
+    splPreview.Align := alRight;
+    splPreview.Left := pnlImageViewer.Left - splPreview.Width;
+  End
+  Else
+  Begin
+    pnlImageViewer.Align := alBottom;
+    pnlImageViewer.Height := pnlImages.Height Div 2;
+
+    splPreview.Align := alBottom;
+    splPreview.Left := pnlImageViewer.Top - splPreview.Height;
+  End;
 End;
 
 Procedure TfrmImageViewer.actCopyFolderExecute(Sender: TObject);
@@ -273,8 +297,28 @@ Var
 Begin
   Inherited LoadLocalSettings(oInifile);
 
-  pnlImageViewer.Height := oInifile.ReadInteger('Settings', 'ImageViewerHeight',
-    pnlImageViewer.Height);
+  // Restore panel alignment and appropriate dimension
+  sTemp := oInifile.ReadString('Settings', 'ImageViewerAlign', 'Bottom');
+
+  If SameText(sTemp, 'Right') Then
+  Begin
+    pnlImageViewer.Align := alRight;
+    pnlImageViewer.Width := oInifile.ReadInteger('Settings', 'ImageViewerWidth',
+      pnlImageViewer.Width);
+
+    splPreview.Align := alRight;
+    splPreview.Left := pnlImageViewer.Left - splPreview.Width;
+  End
+  Else
+  Begin
+    pnlImageViewer.Align := alBottom;
+    pnlImageViewer.Height := oInifile.ReadInteger('Settings', 'ImageViewerHeight',
+      pnlImageViewer.Height);
+
+    splPreview.Align := alBottom;
+    splPreview.Top := pnlImageViewer.Top - splPreview.Height;
+  End;
+
   sTemp := oInifile.ReadString('Settings', 'Folder', edtFolder.Directory);
 
   If DirectoryExists(sTemp) Then
@@ -291,7 +335,17 @@ Begin
   Inherited SaveLocalSettings(oInifile);
 
   oInifile.WriteString('Settings', 'Folder', edtFolder.Directory);
-  oInifile.WriteInteger('Settings', 'ImageViewerHeight', pnlImageViewer.Height);
+
+  If pnlImageViewer.Align = alRight Then
+  Begin
+    oInifile.WriteString('Settings', 'ImageViewerAlign', 'Right');
+    oInifile.WriteInteger('Settings', 'ImageViewerWidth', pnlImageViewer.Width);
+  End
+  Else
+  Begin
+    oInifile.WriteString('Settings', 'ImageViewerAlign', 'Bottom');
+    oInifile.WriteInteger('Settings', 'ImageViewerHeight', pnlImageViewer.Height);
+  End;
 End;
 
 Procedure TfrmImageViewer.LoadFolder(Const AFolder: String);
