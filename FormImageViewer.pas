@@ -6,7 +6,7 @@ Interface
 
 Uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, ComCtrls, ExtCtrls, EditBtn, ActnList,
-  FrameImageGrid, FrameImageViewer, FormMain, IniFiles;
+  StdCtrls, Buttons, Menus, FrameImageGrid, FrameImageViewer, FormMain, IniFiles;
 
 Type
 
@@ -15,28 +15,47 @@ Type
   TfrmImageViewer = Class(TFormMain)
     actCopyFolder: TAction;
     actDeleteFolder: TAction;
+    actAddDestFolder: TAction;
+    actMoveFolder: TAction;
     actTogglePane: TAction;
     actOpenFolder: TAction;
     actRenameFolder: TAction;
     ActionList1: TActionList;
+    cboDestination: TComboBox;
     edtFolder: TDirectoryEdit;
+    Label1: TLabel;
+    Label2: TLabel;
     lvFolders: TListView;
+    MenuItem1: TMenuItem;
+    MenuItem2: TMenuItem;
+    MenuItem3: TMenuItem;
+    MenuItem4: TMenuItem;
+    MenuItem5: TMenuItem;
+    MenuItem6: TMenuItem;
+    mnuView: TMenuItem;
+    mnuEdit: TMenuItem;
     pnlImageViewer: TPanel;
     pnlImages: TPanel;
     pnlFolders: TPanel;
+    dlgDestination: TSelectDirectoryDialog;
     Splitter1: TSplitter;
     splPreview: TSplitter;
     ToolBar1: TToolBar;
     btnRenameFolder: TToolButton;
     ToolButton1: TToolButton;
+    ToolButton10: TToolButton;
     ToolButton2: TToolButton;
     ToolButton3: TToolButton;
     ToolButton4: TToolButton;
     ToolButton5: TToolButton;
     ToolButton6: TToolButton;
     ToolButton7: TToolButton;
+    ToolButton8: TToolButton;
+    ToolButton9: TToolButton;
+    Procedure actAddDestFolderExecute(Sender: TObject);
     Procedure actCopyFolderExecute(Sender: TObject);
     Procedure actDeleteFolderExecute(Sender: TObject);
+    Procedure actMoveFolderExecute(Sender: TObject);
     Procedure actOpenFolderExecute(Sender: TObject);
     Procedure actRenameFolderClick(Sender: TObject);
     Procedure actTogglePaneExecute(Sender: TObject);
@@ -115,6 +134,7 @@ End;
 
 Procedure TfrmImageViewer.edtFolderChange(Sender: TObject);
 Begin
+  edtFolder.TextHint := edtFolder.Directory;
   LoadFolders(edtFolder.Directory);
 
   RefreshUI;
@@ -185,6 +205,18 @@ Begin
   Clipboard.AsText := sBase + sFolder;
 End;
 
+Procedure TfrmImageViewer.actAddDestFolderExecute(Sender: TObject);
+Begin
+  dlgDestination.InitialDir := cboDestination.Text;
+  If (dlgDestination.Execute) And (dlgDestination.Filename <> cboDestination.Text) Then
+  Begin
+    // Don't add to history
+    //cboDestination.Items.Add(dlgDestination.Filename);
+
+    cboDestination.Text := dlgDestination.Filename;
+  End;
+End;
+
 Procedure TfrmImageViewer.actDeleteFolderExecute(Sender: TObject);
 Var
   sBase, sFolder: String;
@@ -214,6 +246,56 @@ Begin
     End;
   End;
 End;
+
+
+Procedure TfrmImageViewer.actMoveFolderExecute(Sender: TObject);
+Var
+  sBase, sFolder, sDestinationFolder, sSource, sTarget: String;
+  iIndex: Integer;
+Begin
+  If Not Assigned(lvFolders.Selected) Then
+    Exit;
+
+  sDestinationFolder := cboDestination.Text;
+
+  If Not DirectoryExists(sDestinationFolder) Then
+    Exit;
+
+  sBase := IncludeTrailingPathDelimiter(edtFolder.Directory);
+  sFolder := lvFolders.Selected.Caption;
+  iIndex := lvFolders.Selected.Index;
+
+  sSource := sBase + sFolder;
+  sTarget := IncludeTrailingPathDelimiter(sDestinationFolder) + sFolder;
+
+  // Don't overwrite an existing destination
+  If DirectoryExists(sTarget) Then
+  Begin
+    ShowMessage('Destination folder already exists: ' + sTarget);
+    Exit;
+  End;
+
+  // Move the entire directory
+  If SysUtils.RenameFile(sSource, sTarget) Then
+  Begin
+    // Remove the moved folder from the list
+    lvFolders.Items.Delete(iIndex);
+
+    // Select the same index, or previous if at end
+    If lvFolders.Items.Count > 0 Then
+    Begin
+      If iIndex >= lvFolders.Items.Count Then
+        iIndex := lvFolders.Items.Count - 1;
+
+      lvFolders.Selected := lvFolders.Items[iIndex];
+    End;
+  End
+  Else
+    ShowMessage('Unable to move folder: ' + sFolder);
+
+  RefreshUI;
+End;
+
 
 Procedure TfrmImageViewer.actOpenFolderExecute(Sender: TObject);
 Var
@@ -289,6 +371,7 @@ Begin
   actDeleteFolder.Enabled := bExists;
   actOpenFolder.Enabled := bExists;
   actCopyFolder.Enabled := bSelected;
+  actMoveFolder.Enabled := bExists And DirectoryExists(cboDestination.Text);
 End;
 
 Procedure TfrmImageViewer.LoadLocalSettings(oInifile: TIniFile);
@@ -324,8 +407,25 @@ Begin
   If DirectoryExists(sTemp) Then
   Begin
     edtFolder.Directory := sTemp;
+    edtFolder.TextHint := edtFolder.Directory;
     LoadFolders(sTemp);
   End;
+
+  // Default Destinations
+  cboDestination.Items.Clear;
+  cboDestination.Items.Add('P:\Personal\Pictures\Art\By Artist\Emily Thompson');
+  cboDestination.Items.Add('P:\Personal\Pictures\Holidays');
+  cboDestination.Items.Add('P:\Personal\Pictures\Family');
+  cboDestination.Items.Add('P:\Personal\Pictures\Friends');
+  cboDestination.Items.Add('P:\Personal\Pictures\Misc Personal');
+
+  cboDestination.Items.QuoteChar := '"';
+  cboDestination.Items.Delimiter := ',';
+  cboDestination.Items.StrictDelimiter := True;
+
+  cboDestination.Items.DelimitedText :=
+    oInifile.ReadString('Settings', 'Destinations', cboDestination.Items.DelimitedText);
+  cboDestination.Text := oInifile.ReadString('Settings', 'LastDestinations', '');
 
   RefreshUI;
 End;
@@ -335,6 +435,8 @@ Begin
   Inherited SaveLocalSettings(oInifile);
 
   oInifile.WriteString('Settings', 'Folder', edtFolder.Directory);
+  oInifile.WriteString('Settings', 'Destinations', cboDestination.Items.DelimitedText);
+  oInifile.WriteString('Settings', 'LastDestinations', cboDestination.Text);
 
   If pnlImageViewer.Align = alRight Then
   Begin
